@@ -1,0 +1,2 @@
+source_run_id,source_row_number,comment_hash,row_date,site_code,business_unit,vera_priority,vera_reason_codes,human_relevant,human_domains,human_priority,correct_route,follow_up_needed,flag_quality,reviewer_id,reviewed_at,reviewer_notes
+sample_run,2,examplehash001,2026-01-15,AVP1,FC,Priority 1 - HR Compliance review,explicit_hr_compliance,yes,explicit_hr_compliance,Priority 1 - HR Compliance review,HR Compliance,yes,true_positive,reviewer_1,2026-07-09,Example only

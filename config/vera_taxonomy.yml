@@ -1,0 +1,63 @@
+method_version: VERA_VOC_REGEX_V0_1
+description: Governed review taxonomy for VOC Board employee voice review.
+principles:
+  - VERA supports human review and routing.
+  - VERA does not make legal conclusions or substantiation findings.
+  - Priority labels are workflow aids, not determinations.
+  - Labor relations and protected activity are routed separately from discrimination and harassment.
+domains:
+  explicit_hr_compliance:
+    label: Explicit HR compliance language
+    pattern: "\\b(discriminat\\w*|harass\\w*|retaliat\\w*|hostil\\w*|wrongful\\s+term\\w*|eeoc)\\b"
+  protected_class_reference:
+    label: Protected-class reference
+    pattern: "\\b(race|racial|racis\\w*|religion|religious|gender|sexism|sexist|pregnan\\w*|maternity|disab\\w*|ada|national\\s+origin|ethnic\\w*|black|white|hispanic|latino|latina|asian|gay|lesbian|lgbtq\\w*|transgender|trans|veteran|older|age)\\b"
+  workplace_conduct:
+    label: Workplace conduct or treatment
+    pattern: "\\b(unfair\\w*|favorit\\w*|unjust\\w*|bully\\w*|abus\\w*|demean\\w*|slur\\w*|inappropriate\\w*|intimidat\\w*|aggress\\w*|disrespect\\w*|conflict\\w*|berat\\w*|toxic\\w*|target\\w*|exclude\\w*|teas\\w*)\\b"
+  sexual_misconduct_or_touching:
+    label: Sexual misconduct or touching
+    pattern: "\\b(sexual\\w*|sex\\s+harass\\w*|touch\\w*|assault\\w*|inappropriate\\s+(comment|touch|advance|behavior|conduct))\\b"
+  violence_or_self_harm:
+    label: Violence, threat, or self-harm
+    pattern: "\\b(threat\\w*|violen\\w*|suicide\\w*|self\\s*harm|kill\\s+myself|hurt\\s+myself|hurt\\s+someone)\\b"
+  labor_relations:
+    label: Labor relations or protected activity
+    pattern: "\\b(union\\w*|organiz\\w*|strik\\w*|protest\\w*|picket\\w*|nlrb|concerted\\s+activit\\w*|unfair\\s+labor\\s+practice|collective\\s+bargain\\w*)\\b"
+  safety_ehs:
+    label: Safety or EHS
+    pattern: "\\b(osha|unsaf\\w*|danger\\w*|risk\\w*|injur\\w*|hot|heat|temperature|temparature|freez\\w*|burn\\w*|drug\\w*|alcohol\\w*|drunk\\w*|marijuana\\w*|under\\s+the\\s+influence)\\b"
+  legal_regulatory:
+    label: Legal or regulatory reference
+    pattern: "\\b(attorney\\w*|counsel\\w*|lawsuit\\w*|legal\\w*|illegal\\w*|law|laws|dol|flsa|fmla)\\b"
+  executive_escalation:
+    label: Executive escalation reference
+    pattern: "\\b(ceo|cto|chro|cmo|sumit)\\b"
+  general_employee_relations:
+    label: General employee relations
+    pattern: "\\b(inconsistent\\w*|unfair\\w*|favorit\\w*|unjust\\w*|bully\\w*|abus\\w*|conflict\\w*|berat\\w*|disrespect\\w*|demean\\w*|hate\\w*|violat\\w*|toxic\\w*|unrespons\\w*|steal\\w*|theft\\w*)\\b"
+priority_rules:
+  - priority: Priority 1 - Immediate human review
+    when_any:
+      - violence_or_self_harm
+      - sexual_misconduct_or_touching
+  - priority: Priority 1 - HR Compliance review
+    when_any:
+      - explicit_hr_compliance
+    when_all_alternative:
+      - protected_class_reference
+      - workplace_conduct
+  - priority: Priority 1 - Labor Relations review
+    when_any:
+      - labor_relations
+  - priority: Priority 2 - Legal / executive routing review
+    when_any:
+      - legal_regulatory
+      - executive_escalation
+  - priority: Priority 2 - Safety / EHS routing review
+    when_any:
+      - safety_ehs
+  - priority: Priority 3 - Employee Relations trend review
+    when_any:
+      - general_employee_relations
+      - workplace_conduct

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Local outputs and source data
+data/*
+outputs/*
+local_outputs/
+restricted_outputs/
+*unredacted*
+*.xlsx
+*.csv
+*.html
+
+# Keep controlled examples/templates
+!examples/*.csv
+!evals/*.csv
+!outputs/README.md
+!data/README.md
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
