@@ -1,0 +1,5 @@
+comparison_id,current_process_flagged,vera_flagged,ai_classification,human_label,expected_outcome,notes
+safe_travels_example,true,false,not_relevant,not_relevant,current_false_positive_avoided,Benign use of safe
+not_safe_table_example,true,true,relevant,relevant,no_regression_after_tuning,Contextual safety concern
+hazard_bots_example,true,true,relevant,relevant,no_regression_after_tuning,Contextual safety concern
+vera_only_example,false,true,relevant,relevant,net_new_signal,Reviewer-confirmed VERA-only candidate

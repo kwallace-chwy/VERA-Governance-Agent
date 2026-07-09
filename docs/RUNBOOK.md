@@ -52,6 +52,26 @@ Run restricted unredacted output:
 python src/vera_voc_analysis.py --input C:\path\to\VOC.csv --output-dir restricted_outputs --include-raw
 ```
 
+## Current-process comparison run
+
+Use this when comparing VERA to the current daily ER escalation email export.
+
+```powershell
+python src/compare_current_vs_vera.py --current-export C:\path\to\ER_Risk.csv --vera-output C:\path\to\vera_voc_board_audit_view_output_unredacted.csv --output-dir restricted_comparison_outputs --include-raw-html
+```
+
+The comparison runner aligns VERA to the current export date window by default. It produces:
+
+- `current_vs_vera_summary.csv`
+- `current_rows_with_vera_match.csv`
+- `current_only_vera_not_flagged.csv`
+- `current_unmatched_to_vera_source.csv`
+- `vera_only_candidates.csv`
+- `ai_edge_review_queue.csv`
+- `current_vs_vera_comparison_report.html`
+
+Use the actual ER export as the measurement baseline when available. The provided SQL regex is useful for design, but the export may include additional risky words.
+
 ## Expected outputs
 
 Redacted mode:
@@ -108,3 +128,4 @@ Before sharing outputs:
 - Confirm method version.
 - Confirm run date and source window.
 - Confirm caveat language is present.
+- For current-process comparisons, confirm date-window alignment and whether raw text is included in the HTML report.

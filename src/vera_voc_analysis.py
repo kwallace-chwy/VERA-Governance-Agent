@@ -169,6 +169,12 @@ def reason_codes(row: pd.Series, taxonomy: dict[str, Any]) -> str:
     return ", ".join(codes)
 
 
+def benign_context_codes(row: pd.Series, taxonomy: dict[str, Any]) -> str:
+    contexts = taxonomy.get("benign_contexts", {})
+    codes = [key for key in contexts if bool(row.get(f"BENIGN_{key.upper()}", False))]
+    return ", ".join(codes)
+
+
 def assign_priority(row: pd.Series) -> str | None:
     if row["FLAG_VIOLENCE_OR_SELF_HARM"] or row["FLAG_SEXUAL_MISCONDUCT_OR_TOUCHING"]:
         return "Priority 1 - Immediate human review"
@@ -187,14 +193,53 @@ def assign_priority(row: pd.Series) -> str | None:
     return None
 
 
+def deterministic_source(row: pd.Series) -> str:
+    current_match = bool(clean_text(row.get("CURRENT_PROCESS_PRIORITY_LEVEL", "")))
+    vera_match = bool(row.get("FLAG_REVIEW_CANDIDATE", False))
+    if current_match and vera_match:
+        return "both_current_and_vera"
+    if vera_match:
+        return "vera_only"
+    if current_match:
+        return "current_only_for_ai_edge_review"
+    return "not_flagged"
+
+
+def ai_edge_reason(row: pd.Series) -> str | None:
+    source = row.get("DETERMINISTIC_SOURCE")
+    benign_codes = clean_text(row.get("BENIGN_CONTEXT_CODES", ""))
+    if source == "current_only_for_ai_edge_review":
+        if benign_codes:
+            return "possible_current_false_positive_benign_context"
+        return "current_only_broad_keyword_review"
+    if source == "vera_only":
+        return "vera_only_net_new_signal_review"
+    return None
+
+
 def build_view(df: pd.DataFrame, taxonomy: dict[str, Any], include_raw: bool) -> pd.DataFrame:
     flagged = apply_flags(df, taxonomy)
+    for key, context in taxonomy.get("benign_contexts", {}).items():
+        flagged[f"BENIGN_{key.upper()}"] = flagged["PRIMARY_TEXT_CLEAN"].str.contains(
+            context["pattern"],
+            flags=re.IGNORECASE | re.DOTALL,
+            regex=True,
+            na=False,
+        )
     flagged["AUDIT_REASON_CODES"] = flagged.apply(lambda row: reason_codes(row, taxonomy), axis=1)
     flagged["AUDIT_PRIORITY"] = flagged.apply(assign_priority, axis=1)
     flagged["FLAG_REVIEW_CANDIDATE"] = flagged["AUDIT_PRIORITY"].notna()
+    flagged["CURRENT_PROCESS_PRIORITY_LEVEL"] = flagged["LEGACY_REGEX_ESCALATION"]
+    flagged["FLAG_CURRENT_PROCESS_MATCH"] = flagged["CURRENT_PROCESS_PRIORITY_LEVEL"].notna()
+    flagged["BENIGN_CONTEXT_CODES"] = flagged.apply(lambda row: benign_context_codes(row, taxonomy), axis=1)
+    flagged["DETERMINISTIC_SOURCE"] = flagged.apply(deterministic_source, axis=1)
+    flagged["NEEDS_AI_EDGE_REVIEW"] = flagged["DETERMINISTIC_SOURCE"].isin(
+        ["current_only_for_ai_edge_review", "vera_only"]
+    )
+    flagged["AI_EDGE_REVIEW_REASON"] = flagged.apply(ai_edge_reason, axis=1)
     flagged["COMMENT_HASH"] = flagged["PRIMARY_TEXT_CLEAN"].map(comment_hash)
     flagged["SOURCE_ROW_NUMBER"] = flagged.index + 2
-    flagged["AUDIT_METHOD_VERSION"] = taxonomy.get("method_version", "VERA_VOC_REGEX_V0_1")
+    flagged["AUDIT_METHOD_VERSION"] = taxonomy.get("method_version", "VERA_VOC_HYBRID_V0_2")
     flagged["AUDIT_RUN_TS"] = datetime.now().isoformat(timespec="seconds")
     flagged["RESOLUTION_PRESENT"] = flagged["RESOLUTION"].map(lambda value: bool(clean_text(value)))
 
@@ -221,10 +266,17 @@ def build_view(df: pd.DataFrame, taxonomy: dict[str, Any], include_raw: bool) ->
         "RESOLUTION_PRESENT",
         "ACTION_COMPLETED",
         "LEGACY_REGEX_ESCALATION",
+        "CURRENT_PROCESS_PRIORITY_LEVEL",
+        "FLAG_CURRENT_PROCESS_MATCH",
         "AUDIT_PRIORITY",
         "AUDIT_REASON_CODES",
         "FLAG_REVIEW_CANDIDATE",
+        "DETERMINISTIC_SOURCE",
+        "BENIGN_CONTEXT_CODES",
+        "NEEDS_AI_EDGE_REVIEW",
+        "AI_EDGE_REVIEW_REASON",
         *[f"FLAG_{key.upper()}" for key in taxonomy["domains"]],
+        *[f"BENIGN_{key.upper()}" for key in taxonomy.get("benign_contexts", {})],
         "AUDIT_METHOD_VERSION",
         "AUDIT_RUN_TS",
     ]
@@ -239,6 +291,7 @@ def build_view(df: pd.DataFrame, taxonomy: dict[str, Any], include_raw: bool) ->
 def summarize(view: pd.DataFrame, taxonomy: dict[str, Any]) -> dict[str, Any]:
     total = len(view)
     flagged = int(view["FLAG_REVIEW_CANDIDATE"].sum())
+    edge_review = int(view["NEEDS_AI_EDGE_REVIEW"].sum()) if "NEEDS_AI_EDGE_REVIEW" in view else 0
     domain_rows = []
     for key, domain in taxonomy["domains"].items():
         count = int(view[f"FLAG_{key.upper()}"].sum())
@@ -260,6 +313,7 @@ def summarize(view: pd.DataFrame, taxonomy: dict[str, Any]) -> dict[str, Any]:
         "total_comments": total,
         "review_candidates": flagged,
         "review_candidate_rate": pct(flagged, total),
+        "edge_review_candidates": edge_review,
         "domain_rows": pd.DataFrame(domain_rows).sort_values("comments", ascending=False),
         "priority_rows": priority_rows,
     }
@@ -273,6 +327,7 @@ def write_html(output_path: Path, summary: dict[str, Any], view: pd.DataFrame, i
         else "Internal review packet: raw comment text is not included."
     )
     candidate_preview = view[view["FLAG_REVIEW_CANDIDATE"]].head(500)
+    edge_preview = view[view["NEEDS_AI_EDGE_REVIEW"]].head(500) if "NEEDS_AI_EDGE_REVIEW" in view else view.head(0)
     output_path.write_text(
         f"""<!doctype html>
 <html lang="en">
@@ -307,6 +362,7 @@ def write_html(output_path: Path, summary: dict[str, Any], view: pd.DataFrame, i
       <div class="card"><div class="value">{summary["total_comments"]:,}</div><div>VOC Board comments</div></div>
       <div class="card"><div class="value">{summary["review_candidates"]:,}</div><div>Review candidates</div></div>
       <div class="card"><div class="value">{summary["review_candidate_rate"]:.1%}</div><div>Candidate rate</div></div>
+      <div class="card"><div class="value">{summary["edge_review_candidates"]:,}</div><div>AI edge review candidates</div></div>
     </section>
     <h2>Routing priority</h2>
     <div class="table-wrap">{summary["priority_rows"].to_html(index=False, escape=True)}</div>
@@ -315,6 +371,9 @@ def write_html(output_path: Path, summary: dict[str, Any], view: pd.DataFrame, i
     <h2>Candidate audit view preview</h2>
     <p>Showing up to 500 candidate rows. Use the CSV or workbook for full output.</p>
     <div class="table-wrap">{candidate_preview.fillna("").to_html(index=False, escape=True)}</div>
+    <h2>AI edge review queue preview</h2>
+    <p>Showing up to 500 rows where current-process and VERA deterministic outcomes differ.</p>
+    <div class="table-wrap">{edge_preview.fillna("").to_html(index=False, escape=True)}</div>
   </main>
 </body>
 </html>
@@ -349,6 +408,7 @@ def run(input_path: Path, output_dir: Path, taxonomy_path: Path, include_raw: bo
                 {"Metric": "VOC Board comments analyzed", "Value": summary["total_comments"]},
                 {"Metric": "Review candidates surfaced", "Value": summary["review_candidates"]},
                 {"Metric": "Review candidate rate", "Value": summary["review_candidate_rate"]},
+                {"Metric": "AI edge review candidates", "Value": summary["edge_review_candidates"]},
                 {"Metric": "Contains raw comments", "Value": include_raw},
             ]
         ).to_excel(writer, index=False, sheet_name="Summary")

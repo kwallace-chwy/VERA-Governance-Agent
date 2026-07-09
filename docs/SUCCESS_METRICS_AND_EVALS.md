@@ -26,6 +26,9 @@ VERA helps leaders support positive employee relations by making sensitive emplo
 | Reviewer agreement | Agreement between reviewers on domain, priority, and routing labels. |
 | Reason-code coverage | Share of surfaced candidates with at least one reason code. |
 | Method repeatability | Same input plus same method version produces same output. |
+| Current-process overlap | Share of current ER escalation rows also surfaced by VERA. |
+| Current-only validation rate | Share of current-only rows that reviewers confirm as relevant. |
+| VERA-only validation rate | Share of VERA-only rows that reviewers confirm as relevant net-new signal. |
 
 ## Governance and trust measures
 
@@ -57,6 +60,7 @@ Sampling plan:
 
 - Include all Priority 1 rows for the first several runs.
 - Stratify Priority 2 and Priority 3 rows by domain and site.
+- Include all current-only and VERA-only disagreement rows during the pilot if volume allows.
 - Include a statistically useful sample of non-candidates.
 - Oversample comments with multiple domain flags.
 - Oversample short or ambiguous comments.

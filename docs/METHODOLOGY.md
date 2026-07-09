@@ -70,7 +70,7 @@ Priority is assigned in a deterministic order.
 
 ## Why this split matters
 
-The legacy keyword search is useful as a broad first screen, but it mixes several review purposes:
+The current keyword search is useful as a broad first screen, but it mixes several review purposes:
 
 - HR Compliance
 - Labor Relations
@@ -80,6 +80,21 @@ The legacy keyword search is useful as a broad first screen, but it mixes severa
 - General ER
 
 VERA preserves the recall value of keyword review while making the domain and routing rationale easier to inspect.
+
+## Hybrid classification workflow
+
+VERA uses deterministic logic before AI.
+
+1. Deterministic keyword and regex rules create an explainable candidate pool.
+2. Deterministic benign-context checks identify high-confidence false-positive patterns such as `safe travels`.
+3. Rows where VERA and the current process disagree are placed into an AI edge-case review queue.
+4. AI classification, when enabled, returns structured labels only. It does not make legal conclusions or final employment determinations.
+5. Human reviewers validate relevant, unclear, and sampled not-relevant rows. Those labels become the gold standard.
+
+There are two comparison baselines:
+
+- Provided current-process regex: the SQL CASE expression provided during design.
+- Actual ER escalation export: the daily email output file. This should be treated as the measurement baseline because it may include additional risky words beyond the provided regex.
 
 ## Measurement approach
 
@@ -92,6 +107,7 @@ Core measures:
 - Site concentration by candidate volume and candidate rate.
 - Monthly trend by domain and priority.
 - Legacy regex comparison.
+- Current ER escalation export comparison.
 
 Quality measures:
 
@@ -133,6 +149,6 @@ Reviewer labels should capture:
 
 Current version:
 
-`VERA_VOC_REGEX_V0_1`
+`VERA_VOC_HYBRID_V0_2`
 
 Any change to domains, patterns, priority rules, filters, or source fields should increment the method version and be documented in a release note.

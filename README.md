@@ -36,6 +36,7 @@ VERA adds business value by making the review process more consistent and measur
 | --- | --- |
 | `docs/PRD.md` | Product requirements, business problem, stakeholder value, scope, and roadmap. |
 | `docs/METHODOLOGY.md` | VOC audit methodology, review domains, priority rules, and measurement approach. |
+| `docs/HYBRID_CLASSIFICATION_DESIGN.md` | Deterministic-first plus AI edge-case classification design. |
 | `docs/GOVERNANCE_SECURITY.md` | Governance, access, privacy, retention, human review, and security controls. |
 | `docs/AGENT_FRAMEWORK.md` | Agent architecture, workflow, tools, output contracts, and Phoenix integration notes. |
 | `docs/SUCCESS_METRICS_AND_EVALS.md` | Success measures, gold standard strategy, and monitoring plan. |
@@ -44,7 +45,7 @@ VERA adds business value by making the review process more consistent and measur
 | `docs/RUNBOOK.md` | Step-by-step run instructions for Snowflake and local CSV review. |
 | `docs/BUILD_CHECKLIST.md` | Implementation checklist from foundation through launch. |
 | `sql/` | Snowflake view and aggregate report SQL. |
-| `src/` | Local audit runner for exported CSVs. |
+| `src/` | Local audit runner and current-process comparison tooling for exported CSVs. |
 | `config/vera_taxonomy.yml` | Governed review domains, regex patterns, and priority rules. |
 | `prompts/` | Agent persona and system prompt scaffold. |
 | `evals/` | Gold standard template, labeling guide, and Arize monitoring plan. |
@@ -86,6 +87,14 @@ Run a restricted unredacted review package:
 python src/vera_voc_analysis.py --input path\to\VOC.csv --output-dir restricted_outputs --include-raw
 ```
 
+### Current-process comparison
+
+Compare the daily ER escalation export to a VERA output file and create an AI edge-case queue:
+
+```powershell
+python src/compare_current_vs_vera.py --current-export path\to\ER_Risk.csv --vera-output path\to\vera_voc_board_audit_view_output_unredacted.csv --output-dir restricted_comparison_outputs --include-raw-html
+```
+
 ## Data handling position
 
 Do not commit raw VOC comments, unredacted review queues, or identifiable employee details to this repository without explicit approval from the appropriate data owner, HR Compliance, Legal, and repository administrators.
@@ -97,10 +106,18 @@ This repo is designed to hold the product, governance, method, SQL, prompts, eva
 The July 9, 2026 Snowflake CSV run produced:
 
 - 6,085 VOC Board comments analyzed.
-- 423 VERA review candidates.
+- 465 VERA review candidates using `VERA_VOC_HYBRID_V0_2`.
 - 69 Priority 1 candidates.
-- 238 Priority 2 candidates.
-- 116 Priority 3 candidates.
+- 282 Priority 2 candidates.
+- 114 Priority 3 candidates.
+
+The date-aligned comparison against the supplied current ER escalation export for January 1, 2026 through July 3, 2026 produced:
+
+- 1,255 current-process rows.
+- 1,254 rows matched back to the VERA VOC source.
+- 417 current-process rows also surfaced by VERA.
+- 837 current-process rows not surfaced by VERA and routed to edge-case validation.
+- 40 VERA-only candidates in the aligned date window.
 
 Those counts are included here as historical run context only. The repo does not include the unredacted comments from that run.
 

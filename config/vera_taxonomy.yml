@@ -1,4 +1,4 @@
-method_version: VERA_VOC_REGEX_V0_1
+method_version: VERA_VOC_HYBRID_V0_2
 description: Governed review taxonomy for VOC Board employee voice review.
 principles:
   - VERA supports human review and routing.
@@ -26,7 +26,7 @@ domains:
     pattern: "\\b(union\\w*|organiz\\w*|strik\\w*|protest\\w*|picket\\w*|nlrb|concerted\\s+activit\\w*|unfair\\s+labor\\s+practice|collective\\s+bargain\\w*)\\b"
   safety_ehs:
     label: Safety or EHS
-    pattern: "\\b(osha|unsaf\\w*|danger\\w*|risk\\w*|injur\\w*|hot|heat|temperature|temparature|freez\\w*|burn\\w*|drug\\w*|alcohol\\w*|drunk\\w*|marijuana\\w*|under\\s+the\\s+influence)\\b"
+    pattern: "\\b(osha|unsaf\\w*|not\\s+safe|hazard\\w*|danger\\w*|risk\\w*|injur\\w*|get\\s+hurt|hurt\\s+badly|safety\\s+(has\\s+been\\s+)?compromis\\w*|jeopardiz\\w*\\s+safety|safety\\s+(concern|concerns|issue|issues|risk|risks)|hot|heat|temperature|temparature|freez\\w*|burn\\w*|drug\\w*|alcohol\\w*|drunk\\w*|marijuana\\w*|under\\s+the\\s+influence)\\b"
   legal_regulatory:
     label: Legal or regulatory reference
     pattern: "\\b(attorney\\w*|counsel\\w*|lawsuit\\w*|legal\\w*|illegal\\w*|law|laws|dol|flsa|fmla)\\b"
@@ -36,6 +36,16 @@ domains:
   general_employee_relations:
     label: General employee relations
     pattern: "\\b(inconsistent\\w*|unfair\\w*|favorit\\w*|unjust\\w*|bully\\w*|abus\\w*|conflict\\w*|berat\\w*|disrespect\\w*|demean\\w*|hate\\w*|violat\\w*|toxic\\w*|unrespons\\w*|steal\\w*|theft\\w*)\\b"
+benign_contexts:
+  safe_travels:
+    label: Benign travel or farewell use of safe
+    pattern: "\\b(safe\\s+travel\\w*|travel\\s+safe\\w*)\\b"
+  touch_screen:
+    label: Equipment/interface use of touch
+    pattern: "\\b(touch\\s*screen\\w*|touchscreen\\w*)\\b"
+  high_five:
+    label: Benign idiom using high
+    pattern: "\\b(high\\s+five\\w*)\\b"
 priority_rules:
   - priority: Priority 1 - Immediate human review
     when_any:
