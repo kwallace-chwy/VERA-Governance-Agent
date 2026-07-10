@@ -239,7 +239,7 @@ def build_view(df: pd.DataFrame, taxonomy: dict[str, Any], include_raw: bool) ->
     flagged["AI_EDGE_REVIEW_REASON"] = flagged.apply(ai_edge_reason, axis=1)
     flagged["COMMENT_HASH"] = flagged["PRIMARY_TEXT_CLEAN"].map(comment_hash)
     flagged["SOURCE_ROW_NUMBER"] = flagged.index + 2
-    flagged["AUDIT_METHOD_VERSION"] = taxonomy.get("method_version", "VERA_VOC_HYBRID_V0_2")
+    flagged["AUDIT_METHOD_VERSION"] = taxonomy.get("method_version", "VERA_VOC_HYBRID_V0_3")
     flagged["AUDIT_RUN_TS"] = datetime.now().isoformat(timespec="seconds")
     flagged["RESOLUTION_PRESENT"] = flagged["RESOLUTION"].map(lambda value: bool(clean_text(value)))
 

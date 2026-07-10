@@ -60,6 +60,12 @@ Use this when comparing VERA to the current daily ER escalation email export.
 python src/compare_current_vs_vera.py --current-export C:\path\to\ER_Risk.csv --vera-output C:\path\to\vera_voc_board_audit_view_output_unredacted.csv --output-dir restricted_comparison_outputs --include-raw-html
 ```
 
+When a combined daily VOC Escalation Email attachment export is available, include it:
+
+```powershell
+python src/compare_current_vs_vera.py --current-export C:\path\to\ER_Risk.csv --vera-output C:\path\to\vera_voc_board_audit_view_output_unredacted.csv --current-email-baseline C:\path\to\combined_voc_escalation_email_rows.csv --output-dir restricted_comparison_outputs --include-raw-html
+```
+
 The comparison runner aligns VERA to the current export date window by default. It produces:
 
 - `current_vs_vera_summary.csv`
@@ -73,6 +79,8 @@ The comparison runner aligns VERA to the current export date window by default. 
 - `current_vs_vera_comparison_report.html`
 
 Use the actual ER export as the measurement baseline when available. The provided SQL regex is useful for design, but the export may include additional risky words.
+
+Use the VOC Escalation Email attachment baseline as an additional current-process artifact. A VERA item should not be called net-new to the current process until it is absent from both the dashboard export and the available daily escalation email attachments.
 
 The comparison uses three match checks before treating a VERA candidate as absent from the current export:
 

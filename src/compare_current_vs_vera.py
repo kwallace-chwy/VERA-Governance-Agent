@@ -291,7 +291,14 @@ def build_report_html(
     )
 
 
-def compare(current_export: Path, vera_output: Path, output_dir: Path, include_raw_html: bool, preview_rows: int) -> None:
+def compare(
+    current_export: Path,
+    vera_output: Path,
+    output_dir: Path,
+    include_raw_html: bool,
+    preview_rows: int,
+    current_email_baseline: Path | None = None,
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     current = read_current_export(current_export)
@@ -445,6 +452,55 @@ def compare(current_export: Path, vera_output: Path, output_dir: Path, include_r
     else:
         dashboard_semantic_export = pd.DataFrame()
 
+    if current_email_baseline:
+        email_baseline = pd.read_csv(current_email_baseline)
+        email_date_col = find_column(email_baseline, ["Date_Posted", "Date Posted"])
+        email_site_col = find_column(email_baseline, ["Fulfillment_Center", "Fulfillment Center", "Site"])
+        email_feedback_col = find_column(email_baseline, ["__________Feedback__________", "Feedback"])
+        email_priority_col = find_column(email_baseline, ["ER_Priority_Level", "Er Priority Level"], required=False)
+        email_risky_col = find_column(email_baseline, ["risky_words", "RISKY_W_LS", "Risky Words"], required=False)
+
+        if current_min_date is not None and current_max_date is not None:
+            email_dates = pd.to_datetime(email_baseline[email_date_col], errors="coerce")
+            email_baseline = email_baseline[(email_dates >= current_min_date) & (email_dates <= current_max_date)].copy()
+
+        email_keyed = add_match_keys(email_baseline, email_site_col, email_date_col, email_feedback_col)
+        email_semantic_matches = find_dashboard_semantic_matches(vera_only, email_keyed, threshold=0.92)
+        if not email_semantic_matches.empty:
+            email_matched_vera_ids = set(email_semantic_matches["vera_row_id"].astype(int).tolist())
+            email_export_columns = ["_ROW_ID", email_date_col, email_site_col, email_feedback_col]
+            if email_priority_col:
+                email_export_columns.append(email_priority_col)
+            if email_risky_col:
+                email_export_columns.append(email_risky_col)
+            for column in [
+                "__________Resolution__________",
+                "EMAIL_SUBJECT",
+                "EMAIL_RECEIVED_TIME",
+                "EMAIL_FOLDER_PATH",
+                "EMAIL_ATTACHMENT_PATH",
+            ]:
+                if column in email_keyed.columns:
+                    email_export_columns.append(column)
+
+            email_semantic_export = email_semantic_matches.merge(
+                vera_only,
+                how="left",
+                left_on="vera_row_id",
+                right_on="_ROW_ID",
+            ).merge(
+                email_keyed[email_export_columns],
+                how="left",
+                left_on="current_row_id",
+                right_on="_ROW_ID",
+                suffixes=("_vera", "_email"),
+            )
+            vera_only = vera_only[~vera_only["_ROW_ID"].isin(email_matched_vera_ids)].copy()
+        else:
+            email_semantic_export = pd.DataFrame()
+    else:
+        email_semantic_export = pd.DataFrame()
+
     vera_only["_CURRENT_EXPORT_PRESENT"] = False
     vera_only["COMPARISON_BUCKET"] = "vera_only_candidate"
     vera_only["AI_EDGE_REVIEW_RECOMMENDED"] = True
@@ -519,6 +575,7 @@ def compare(current_export: Path, vera_output: Path, output_dir: Path, include_r
         {"metric": "vera_total_rows", "value": len(vera_keyed)},
         {"metric": "vera_review_candidates", "value": int(vera_keyed["VERA_FLAG_REVIEW_CANDIDATE"].sum())},
         {"metric": "vera_candidate_semantic_matches_in_current_export", "value": len(dashboard_semantic_matches)},
+        {"metric": "vera_candidate_matches_in_escalation_email_baseline", "value": len(email_semantic_export)},
         {"metric": "vera_only_candidates", "value": len(vera_only)},
         {"metric": "ai_edge_review_queue_rows", "value": len(edge_queue)},
     ]
@@ -545,6 +602,7 @@ def compare(current_export: Path, vera_output: Path, output_dir: Path, include_r
     vera_only.to_csv(output_dir / "vera_only_candidates.csv", index=False)
     fuzzy_matches.to_csv(output_dir / "fuzzy_dashboard_vera_matches.csv", index=False)
     dashboard_semantic_export.to_csv(output_dir / "dashboard_semantic_matches.csv", index=False)
+    email_semantic_export.to_csv(output_dir / "escalation_email_semantic_matches.csv", index=False)
     edge_queue.to_csv(output_dir / "ai_edge_review_queue.csv", index=False)
     build_report_html(
         output_dir / "current_vs_vera_comparison_report.html",
@@ -572,9 +630,22 @@ def parse_args() -> argparse.Namespace:
         help="Include raw feedback text in the HTML preview. Use only in restricted locations.",
     )
     parser.add_argument("--preview-rows", type=int, default=250, help="Rows to show in the HTML preview tables.")
+    parser.add_argument(
+        "--current-email-baseline",
+        type=Path,
+        default=None,
+        help="Optional combined VOC Escalation Email attachment export to treat as an additional current-process baseline.",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    compare(args.current_export, args.vera_output, args.output_dir, args.include_raw_html, args.preview_rows)
+    compare(
+        args.current_export,
+        args.vera_output,
+        args.output_dir,
+        args.include_raw_html,
+        args.preview_rows,
+        args.current_email_baseline,
+    )

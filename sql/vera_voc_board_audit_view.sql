@@ -58,13 +58,15 @@ flags AS (
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(sexual\\w*|sex\\s+harass\\w*|touch\\w*|assault\\w*|inappropriate\\s+(comment|touch|advance|behavior|conduct))\\b.*', 'is') AS FLAG_SEXUAL_MISCONDUCT_OR_TOUCHING,
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(threat\\w*|violen\\w*|suicide\\w*|self\\s*harm|kill\\s+myself|hurt\\s+myself|hurt\\s+someone)\\b.*', 'is') AS FLAG_VIOLENCE_OR_SELF_HARM,
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(union\\w*|organiz\\w*|strik\\w*|protest\\w*|picket\\w*|nlrb|concerted\\s+activit\\w*|unfair\\s+labor\\s+practice|collective\\s+bargain\\w*)\\b.*', 'is') AS FLAG_LABOR_RELATIONS,
-        REGEXP_LIKE(AUDIT_TEXT, '.*\\b(osha|unsaf\\w*|not\\s+safe|hazard\\w*|danger\\w*|risk\\w*|injur\\w*|get\\s+hurt|hurt\\s+badly|safety\\s+(has\\s+been\\s+)?compromis\\w*|jeopardiz\\w*\\s+safety|safety\\s+(concern|concerns|issue|issues|risk|risks)|hot|heat|temperature|temparature|freez\\w*|burn\\w*|drug\\w*|alcohol\\w*|drunk\\w*|marijuana\\w*|under\\s+the\\s+influence)\\b.*', 'is') AS FLAG_SAFETY_EHS,
+        REGEXP_LIKE(AUDIT_TEXT, '.*\\b(osha|biohazard\\w*|unsaf\\w*|not\\s+safe|hazard\\w*|danger\\w*|risk\\w*|injur\\w*|get\\s+hurt|hurt\\s+badly|safety\\s+(has\\s+been\\s+)?compromis\\w*|jeopardiz\\w*\\s+safety|safety\\s+(concern|concerns|issue|issues|risk|risks)|heat\\s+(stress|advisory|illness|exhaust\\w*)|temp\\w*\\s+(exceed\\w*|threshold|too\\s+high)|((way|too|very|really|grossly|stupid|extremely|so)\\s+hot)|hot\\s+(in|inside|here|warehouse|building|mods|trailers)|hot\\s*&\\s*humid|humid\\w*|freezing|too\\s+cold|so\\s+cold|cold\\s+in\\s+(the\\s+)?(building|warehouse|lab)|burn\\w*|drug\\w*|marijuana\\w*|under\\s+the\\s+influence|intoxicat\\w*)\\b.*', 'is') AS FLAG_SAFETY_EHS,
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(attorney\\w*|counsel\\w*|lawsuit\\w*|legal\\w*|illegal\\w*|law|laws|dol|flsa|fmla)\\b.*', 'is') AS FLAG_LEGAL_REGULATORY,
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(ceo|cto|chro|cmo|sumit)\\b.*', 'is') AS FLAG_EXECUTIVE_ESCALATION,
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(inconsistent\\w*|unfair\\w*|favorit\\w*|unjust\\w*|bully\\w*|abus\\w*|conflict\\w*|berat\\w*|disrespect\\w*|demean\\w*|hate\\w*|violat\\w*|toxic\\w*|unrespons\\w*|steal\\w*|theft\\w*)\\b.*', 'is') AS FLAG_GENERAL_EMPLOYEE_RELATIONS,
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(safe\\s+travel\\w*|travel\\s+safe\\w*)\\b.*', 'is') AS BENIGN_SAFE_TRAVELS,
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(touch\\s*screen\\w*|touchscreen\\w*)\\b.*', 'is') AS BENIGN_TOUCH_SCREEN,
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(high\\s+five\\w*)\\b.*', 'is') AS BENIGN_HIGH_FIVE,
+        REGEXP_LIKE(AUDIT_TEXT, '.*\\b(hot\\s+(dog|dogs|chocolate|coffee|tea|hands)|coffee\\s*/\\s*hot\\s+chocolate)\\b.*', 'is') AS BENIGN_HOT_FOOD_OR_DRINK,
+        REGEXP_LIKE(AUDIT_TEXT, '.*\\b((break\\s*room|breakroom|canteen|coffee|hot\\s+chocolate|popsicle\\w*).{0,80}(freezer|fridge|refrigerator|microwave|machine)|((freezer|fridge|refrigerator|microwave|machine).{0,80}(break\\s*room|breakroom|canteen|coffee|hot\\s+chocolate|popsicle\\w*))|freezer\\s+dethaw\\w*|dethaw\\w*)\\b.*', 'is') AS BENIGN_BREAKROOM_APPLIANCE_OR_AMENITY,
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(discriminat\\w*|harass\\w*|retaliat\\w*|hostil\\w*|threat\\w*|racis\\w*|sex\\w*|union\\w*|organiz\\w*|strik\\w*|protest\\w*|picket\\w*|violen\\w*|attorney\\w*|counsel\\w*|illeg\\w*|suicide\\w*|touch\\w*|eeoc|dol|osha|ada|flsa|fmla|law|ceo|sumit|cto|chro|cmo|wrongful\\s+term\\w*)\\b.*', 'is') AS CURRENT_LEVEL_1_MATCH,
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(inconsistent\\w*|unfair\\w*|favorit\\w*|unjust\\w*|bully\\w*|abus\\w*|unsaf\\w*|risk\\w*|danger\\w*|inappropriate\\w*|intimidate\\w*|aggress\\w*|assault\\w*|drunk\\w*|drug\\w*|alcohol\\w*|marijuana\\w*|pot|falsif\\w*|hot|temparature|heat|freez\\w*|burn\\w*|wage\\w*|safe\\w*|under\\s+the\\s+influence)\\b.*', 'is') AS CURRENT_LEVEL_2_MATCH,
         REGEXP_LIKE(AUDIT_TEXT, '.*\\b(dispute\\w*|conflict\\w*|berate\\w*|disrespect\\w*|demean\\w*|hate\\w*|violat\\w*|steal\\w*|theft\\w*|toxic\\w*|unrespons\\w*|disresp\\w*|teas\\w*)\\b.*', 'is') AS CURRENT_LEVEL_3_MATCH
@@ -98,7 +100,9 @@ priority AS (
             ARRAY_CONSTRUCT_COMPACT(
                 IFF(BENIGN_SAFE_TRAVELS, 'safe_travels', NULL),
                 IFF(BENIGN_TOUCH_SCREEN, 'touch_screen', NULL),
-                IFF(BENIGN_HIGH_FIVE, 'high_five', NULL)
+                IFF(BENIGN_HIGH_FIVE, 'high_five', NULL),
+                IFF(BENIGN_HOT_FOOD_OR_DRINK, 'hot_food_or_drink', NULL),
+                IFF(BENIGN_BREAKROOM_APPLIANCE_OR_AMENITY, 'breakroom_appliance_or_amenity', NULL)
             ),
             ', '
         ) AS BENIGN_CONTEXT_CODES
@@ -173,6 +177,8 @@ SELECT
     BENIGN_SAFE_TRAVELS,
     BENIGN_TOUCH_SCREEN,
     BENIGN_HIGH_FIVE,
+    BENIGN_HOT_FOOD_OR_DRINK,
+    BENIGN_BREAKROOM_APPLIANCE_OR_AMENITY,
     CURRENT_TIMESTAMP() AS AUDIT_RUN_TS,
-    'VERA_VOC_HYBRID_V0_2' AS AUDIT_METHOD_VERSION
+    'VERA_VOC_HYBRID_V0_3' AS AUDIT_METHOD_VERSION
 FROM priority;

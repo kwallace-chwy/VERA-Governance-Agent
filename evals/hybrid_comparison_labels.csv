@@ -3,3 +3,5 @@ safe_travels_example,true,false,not_relevant,not_relevant,current_false_positive
 not_safe_table_example,true,true,relevant,relevant,no_regression_after_tuning,Contextual safety concern
 hazard_bots_example,true,true,relevant,relevant,no_regression_after_tuning,Contextual safety concern
 vera_only_example,false,true,relevant,relevant,net_new_signal,Reviewer-confirmed VERA-only candidate
+hot_dog_amenity_example,true,false,not_relevant,not_relevant,current_false_positive_avoided,Food/holiday comment with hot dog should not be safety
+freezer_dethaw_amenity_example,true,false,not_relevant,not_relevant,current_false_positive_avoided,Breakroom freezer dethaw is an amenity/facilities issue unless safety context is present

@@ -106,19 +106,17 @@ This repo is designed to hold the product, governance, method, SQL, prompts, eva
 The July 9, 2026 Snowflake CSV run produced:
 
 - 6,085 VOC Board comments analyzed.
-- 465 VERA review candidates using `VERA_VOC_HYBRID_V0_2`.
-- 69 Priority 1 candidates.
-- 282 Priority 2 candidates.
-- 114 Priority 3 candidates.
+- 367 VERA review candidates using `VERA_VOC_HYBRID_V0_3`.
+- Contextual safety tuning to avoid treating food, drink, breakroom appliance, and amenity requests as Safety/EHS review candidates.
 
-The date-aligned comparison against the supplied current ER escalation export for January 1, 2026 through July 3, 2026 produced:
+The date-aligned comparison against the supplied current ER escalation export for January 1, 2026 through July 3, 2026, with available VOC Escalation Email attachments as an additional current-process baseline, produced:
 
 - 1,255 current-process rows.
 - 1,254 rows matched back to the VERA VOC source.
-- 417 current-process rows also surfaced by VERA.
-- 837 current-process rows not surfaced by VERA and routed to edge-case validation.
-- 1 VERA candidate was present in the current export by same-site/date semantic matching, despite not exact-matching the exported text.
-- 39 VERA-only candidates remained in the aligned date window after exact and semantic match checks.
+- 339 current-process rows also surfaced by VERA.
+- 915 current-process rows not surfaced by VERA and routed to edge-case validation.
+- 11 VERA candidates were found in the available VOC Escalation Email attachment baseline.
+- 17 VERA-only candidates remained after Tableau-export and email-attachment reconciliation.
 
 Those counts are included here as historical run context only. The repo does not include the unredacted comments from that run.
 

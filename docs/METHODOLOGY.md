@@ -95,6 +95,9 @@ There are two comparison baselines:
 
 - Provided current-process regex: the SQL CASE expression provided during design.
 - Actual ER escalation export: the daily email output file. This should be treated as the measurement baseline because it may include additional risky words beyond the provided regex.
+- VOC Escalation Email attachments: daily CSV/XLSX attachments should be reconciled before calling any VERA candidate net-new to the current process.
+
+Safety/EHS matching is intentionally contextual. Broad terms such as `hot`, `heat`, `freezer`, `alcohol`, or `drunk` should not create a Safety/EHS candidate by themselves. Examples such as hot dogs, hot chocolate, coffee machines, breakroom freezers, freezer dethawing, or someone "drunk" a beverage should be treated as amenity or keyword-noise contexts unless the comment also describes a workplace safety, health, exposure, OSHA, injury, hazard, or similar concern.
 
 ## Measurement approach
 
@@ -149,6 +152,6 @@ Reviewer labels should capture:
 
 Current version:
 
-`VERA_VOC_HYBRID_V0_2`
+`VERA_VOC_HYBRID_V0_3`
 
 Any change to domains, patterns, priority rules, filters, or source fields should increment the method version and be documented in a release note.

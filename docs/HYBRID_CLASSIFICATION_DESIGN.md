@@ -18,6 +18,10 @@ The actual daily export should be treated as the baseline for measurement when a
 
 When comparing VERA to the daily export, do not rely on exact text matching alone. Dashboard/export rendering can introduce punctuation and spelling differences that make the same comment look different. Use exact same-site/date/text matching first, then same-site/date fuzzy matching, then a same-site/date semantic duplicate check before calling a VERA candidate absent from the dashboard export.
 
+Also reconcile against VOC Escalation Email CSV/XLSX attachments where available. The dashboard export and daily email attachments can disagree because of export timing, created timestamps, mailbox retention, folder state, or report criteria.
+
+Safety/EHS should be contextual. Broad words such as `hot`, `heat`, `freezer`, `alcohol`, or `drunk` should not be enough on their own. VERA should avoid treating food, drink, breakroom appliance, or amenity requests as safety risks unless the comment includes a workplace safety, exposure, OSHA, hazard, injury, or health context.
+
 VERA should not discard that baseline. Instead, VERA should use it as one input to a governed comparison:
 
 - What did the current process catch?
