@@ -67,10 +67,20 @@ The comparison runner aligns VERA to the current export date window by default. 
 - `current_only_vera_not_flagged.csv`
 - `current_unmatched_to_vera_source.csv`
 - `vera_only_candidates.csv`
+- `dashboard_semantic_matches.csv`
+- `fuzzy_dashboard_vera_matches.csv`
 - `ai_edge_review_queue.csv`
 - `current_vs_vera_comparison_report.html`
 
 Use the actual ER export as the measurement baseline when available. The provided SQL regex is useful for design, but the export may include additional risky words.
+
+The comparison uses three match checks before treating a VERA candidate as absent from the current export:
+
+1. Exact same site, posted date, and normalized feedback text hash.
+2. Same site/date fuzzy text match for unmatched dashboard rows.
+3. Same site/date semantic duplicate check for VERA candidates that appear absent after exact matching.
+
+Rows found by the third check are written to `dashboard_semantic_matches.csv`, not counted as VERA-only.
 
 ## Expected outputs
 

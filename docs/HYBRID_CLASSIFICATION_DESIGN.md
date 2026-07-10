@@ -16,6 +16,8 @@ The current daily ER escalation email is an incumbent keyword process. It is use
 
 The actual daily export should be treated as the baseline for measurement when available. The provided regex is useful design context, but the export can include additional risky words beyond that SQL snippet.
 
+When comparing VERA to the daily export, do not rely on exact text matching alone. Dashboard/export rendering can introduce punctuation and spelling differences that make the same comment look different. Use exact same-site/date/text matching first, then same-site/date fuzzy matching, then a same-site/date semantic duplicate check before calling a VERA candidate absent from the dashboard export.
+
 VERA should not discard that baseline. Instead, VERA should use it as one input to a governed comparison:
 
 - What did the current process catch?

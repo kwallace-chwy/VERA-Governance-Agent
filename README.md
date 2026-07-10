@@ -117,7 +117,8 @@ The date-aligned comparison against the supplied current ER escalation export fo
 - 1,254 rows matched back to the VERA VOC source.
 - 417 current-process rows also surfaced by VERA.
 - 837 current-process rows not surfaced by VERA and routed to edge-case validation.
-- 40 VERA-only candidates in the aligned date window.
+- 1 VERA candidate was present in the current export by same-site/date semantic matching, despite not exact-matching the exported text.
+- 39 VERA-only candidates remained in the aligned date window after exact and semantic match checks.
 
 Those counts are included here as historical run context only. The repo does not include the unredacted comments from that run.
 

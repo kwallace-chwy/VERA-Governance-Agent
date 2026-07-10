@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import hashlib
 import html
 import json
@@ -36,6 +37,14 @@ def clean_text(value: object) -> str:
 
 def normalize_text_for_match(value: object) -> str:
     return clean_text(value).casefold()
+
+
+def normalize_text_for_fuzzy_match(value: object) -> str:
+    text = normalize_text_for_match(value)
+    # Normalize common display/export differences without changing the meaning.
+    text = text.replace("brakeroom", "breakroom")
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def text_hash(value: object) -> str:
@@ -89,12 +98,89 @@ def parse_bool(value: object) -> bool:
 
 def add_match_keys(df: pd.DataFrame, site_col: str, date_col: str, text_col: str) -> pd.DataFrame:
     keyed = df.copy()
+    keyed["_ROW_ID"] = range(len(keyed))
     keyed["_MATCH_SITE"] = keyed[site_col].fillna("").astype(str).str.strip().str.upper()
     keyed["_MATCH_DATE"] = pd.to_datetime(keyed[date_col], errors="coerce").dt.strftime("%Y-%m-%d").fillna("")
     keyed["_MATCH_TEXT_HASH"] = keyed[text_col].map(text_hash)
+    keyed["_FUZZY_TEXT"] = keyed[text_col].map(normalize_text_for_fuzzy_match)
     keyed["_MATCH_KEY"] = keyed["_MATCH_SITE"] + "|" + keyed["_MATCH_DATE"] + "|" + keyed["_MATCH_TEXT_HASH"]
     keyed["_MATCH_OCCURRENCE"] = keyed.groupby("_MATCH_KEY", dropna=False).cumcount()
     return keyed
+
+
+def find_fuzzy_matches(
+    left: pd.DataFrame,
+    right: pd.DataFrame,
+    threshold: float,
+) -> pd.DataFrame:
+    matches = []
+    used_right_ids: set[int] = set()
+
+    for _, left_row in left.sort_values(["_MATCH_DATE", "_MATCH_SITE", "_ROW_ID"]).iterrows():
+        candidates = right[
+            (right["_MATCH_SITE"] == left_row["_MATCH_SITE"])
+            & (right["_MATCH_DATE"] == left_row["_MATCH_DATE"])
+            & (~right["_ROW_ID"].isin(used_right_ids))
+        ]
+        if candidates.empty:
+            continue
+
+        best_score = 0.0
+        best_row: pd.Series | None = None
+        left_text = str(left_row["_FUZZY_TEXT"])
+        for _, right_row in candidates.iterrows():
+            score = difflib.SequenceMatcher(None, left_text, str(right_row["_FUZZY_TEXT"])).ratio()
+            if score > best_score:
+                best_score = score
+                best_row = right_row
+
+        if best_row is not None and best_score >= threshold:
+            used_right_ids.add(int(best_row["_ROW_ID"]))
+            matches.append(
+                {
+                    "current_row_id": int(left_row["_ROW_ID"]),
+                    "vera_row_id": int(best_row["_ROW_ID"]),
+                    "match_similarity": round(best_score, 4),
+                }
+            )
+
+    return pd.DataFrame(matches)
+
+
+def find_dashboard_semantic_matches(
+    vera_rows: pd.DataFrame,
+    current_rows: pd.DataFrame,
+    threshold: float,
+) -> pd.DataFrame:
+    matches = []
+
+    for _, vera_row in vera_rows.sort_values(["_MATCH_DATE", "_MATCH_SITE", "_ROW_ID"]).iterrows():
+        candidates = current_rows[
+            (current_rows["_MATCH_SITE"] == vera_row["_MATCH_SITE"])
+            & (current_rows["_MATCH_DATE"] == vera_row["_MATCH_DATE"])
+        ]
+        if candidates.empty:
+            continue
+
+        best_score = 0.0
+        best_row: pd.Series | None = None
+        vera_text = str(vera_row["_FUZZY_TEXT"])
+        for _, current_row in candidates.iterrows():
+            score = difflib.SequenceMatcher(None, vera_text, str(current_row["_FUZZY_TEXT"])).ratio()
+            if score > best_score:
+                best_score = score
+                best_row = current_row
+
+        if best_row is not None and best_score >= threshold:
+            matches.append(
+                {
+                    "vera_row_id": int(vera_row["_ROW_ID"]),
+                    "current_row_id": int(best_row["_ROW_ID"]),
+                    "match_similarity": round(best_score, 4),
+                }
+            )
+
+    return pd.DataFrame(matches)
 
 
 def split_risky_words(value: object) -> list[str]:
@@ -236,6 +322,7 @@ def compare(current_export: Path, vera_output: Path, output_dir: Path, include_r
     vera_match_cols = [
         "_MATCH_KEY",
         "_MATCH_OCCURRENCE",
+        "_ROW_ID",
         "COMMENT_HASH",
         "AUDIT_PRIORITY",
         "AUDIT_REASON_CODES",
@@ -246,6 +333,7 @@ def compare(current_export: Path, vera_output: Path, output_dir: Path, include_r
     vera_match_cols.extend([column for column in optional_match_cols if column in vera_keyed.columns])
     vera_match = vera_keyed[vera_match_cols].rename(
         columns={
+            "_ROW_ID": "VERA_ROW_ID",
             "COMMENT_HASH": "VERA_COMMENT_HASH",
             "AUDIT_PRIORITY": "VERA_AUDIT_PRIORITY",
             "AUDIT_REASON_CODES": "VERA_AUDIT_REASON_CODES",
@@ -258,6 +346,61 @@ def compare(current_export: Path, vera_output: Path, output_dir: Path, include_r
         how="left",
         on=["_MATCH_KEY", "_MATCH_OCCURRENCE"],
     )
+    current_comp["DASHBOARD_MATCH_METHOD"] = current_comp["VERA_COMMENT_HASH"].notna().map(
+        {True: "exact_text_hash", False: ""}
+    )
+    current_comp["DASHBOARD_MATCH_SIMILARITY"] = pd.NA
+
+    exact_matched_vera_ids = set(
+        current_comp["VERA_ROW_ID"].dropna().astype(int).tolist()
+        if "VERA_ROW_ID" in current_comp.columns
+        else []
+    )
+    unmatched_current_for_fuzzy = current_keyed[
+        current_keyed["_ROW_ID"].isin(current_comp[current_comp["VERA_COMMENT_HASH"].isna()]["_ROW_ID"])
+    ].copy()
+    unmatched_vera_for_fuzzy = vera_keyed[~vera_keyed["_ROW_ID"].isin(exact_matched_vera_ids)].copy()
+    fuzzy_matches = find_fuzzy_matches(unmatched_current_for_fuzzy, unmatched_vera_for_fuzzy, threshold=0.92)
+
+    if not fuzzy_matches.empty:
+        fuzzy_vera = vera_keyed[
+            [
+                "_ROW_ID",
+                "COMMENT_HASH",
+                "AUDIT_PRIORITY",
+                "AUDIT_REASON_CODES",
+                "VERA_FLAG_REVIEW_CANDIDATE",
+                "AUDIT_METHOD_VERSION",
+            ]
+        ].rename(
+            columns={
+                "_ROW_ID": "vera_row_id",
+                "COMMENT_HASH": "VERA_COMMENT_HASH",
+                "AUDIT_PRIORITY": "VERA_AUDIT_PRIORITY",
+                "AUDIT_REASON_CODES": "VERA_AUDIT_REASON_CODES",
+                "AUDIT_METHOD_VERSION": "VERA_AUDIT_METHOD_VERSION",
+            }
+        )
+        for column in optional_match_cols:
+            if column in vera_keyed.columns:
+                fuzzy_vera[column] = vera_keyed[column]
+
+        fuzzy_enriched = fuzzy_matches.merge(fuzzy_vera, how="left", on="vera_row_id")
+        fuzzy_by_current = fuzzy_enriched.set_index("current_row_id")
+        for current_row_id, fuzzy_row in fuzzy_by_current.iterrows():
+            mask = current_comp["_ROW_ID"].eq(current_row_id)
+            current_comp.loc[mask, "VERA_ROW_ID"] = fuzzy_row["vera_row_id"]
+            current_comp.loc[mask, "VERA_COMMENT_HASH"] = fuzzy_row["VERA_COMMENT_HASH"]
+            current_comp.loc[mask, "VERA_AUDIT_PRIORITY"] = fuzzy_row["VERA_AUDIT_PRIORITY"]
+            current_comp.loc[mask, "VERA_AUDIT_REASON_CODES"] = fuzzy_row["VERA_AUDIT_REASON_CODES"]
+            current_comp.loc[mask, "VERA_FLAG_REVIEW_CANDIDATE"] = fuzzy_row["VERA_FLAG_REVIEW_CANDIDATE"]
+            current_comp.loc[mask, "VERA_AUDIT_METHOD_VERSION"] = fuzzy_row["VERA_AUDIT_METHOD_VERSION"]
+            current_comp.loc[mask, "DASHBOARD_MATCH_METHOD"] = "same_site_date_fuzzy_text"
+            current_comp.loc[mask, "DASHBOARD_MATCH_SIMILARITY"] = fuzzy_row["match_similarity"]
+            for column in optional_match_cols:
+                if column in fuzzy_row:
+                    current_comp.loc[mask, column] = fuzzy_row[column]
+
     current_comp["CURRENT_MATCHED_TO_VERA_SOURCE"] = current_comp["VERA_COMMENT_HASH"].notna()
     current_comp["VERA_FLAG_REVIEW_CANDIDATE"] = current_comp["VERA_FLAG_REVIEW_CANDIDATE"].map(parse_bool)
     current_comp["COMPARISON_BUCKET"] = current_comp.apply(comparison_bucket, axis=1)
@@ -271,14 +414,38 @@ def compare(current_export: Path, vera_output: Path, output_dir: Path, include_r
         axis=1,
     )
 
-    current_keys = current_keyed[["_MATCH_KEY", "_MATCH_OCCURRENCE"]].drop_duplicates()
+    matched_vera_row_ids = set(current_comp["VERA_ROW_ID"].dropna().astype(int).tolist())
     vera_candidates = vera_keyed[vera_keyed["VERA_FLAG_REVIEW_CANDIDATE"]].copy()
-    vera_only = vera_candidates.merge(
-        current_keys.assign(_CURRENT_EXPORT_PRESENT=True),
-        how="left",
-        on=["_MATCH_KEY", "_MATCH_OCCURRENCE"],
-    )
-    vera_only = vera_only[vera_only["_CURRENT_EXPORT_PRESENT"].isna()].copy()
+    vera_only = vera_candidates[~vera_candidates["_ROW_ID"].isin(matched_vera_row_ids)].copy()
+    dashboard_semantic_matches = find_dashboard_semantic_matches(vera_only, current_keyed, threshold=0.92)
+    if not dashboard_semantic_matches.empty:
+        dashboard_semantic_vera_ids = set(dashboard_semantic_matches["vera_row_id"].astype(int).tolist())
+        dashboard_semantic_export = dashboard_semantic_matches.merge(
+            vera_only,
+            how="left",
+            left_on="vera_row_id",
+            right_on="_ROW_ID",
+        ).merge(
+            current_keyed[
+                [
+                    "_ROW_ID",
+                    current_date_col,
+                    current_site_col,
+                    current_priority_col,
+                    current_feedback_col,
+                    *([current_risky_col] if current_risky_col else []),
+                ]
+            ],
+            how="left",
+            left_on="current_row_id",
+            right_on="_ROW_ID",
+            suffixes=("_vera", "_dashboard"),
+        )
+        vera_only = vera_only[~vera_only["_ROW_ID"].isin(dashboard_semantic_vera_ids)].copy()
+    else:
+        dashboard_semantic_export = pd.DataFrame()
+
+    vera_only["_CURRENT_EXPORT_PRESENT"] = False
     vera_only["COMPARISON_BUCKET"] = "vera_only_candidate"
     vera_only["AI_EDGE_REVIEW_RECOMMENDED"] = True
     vera_only["AI_EDGE_REVIEW_REASON"] = "vera_only_net_new_signal_review"
@@ -295,6 +462,8 @@ def compare(current_export: Path, vera_output: Path, output_dir: Path, include_r
         "COMPARISON_BUCKET",
         "VERA_AUDIT_PRIORITY",
         "VERA_AUDIT_REASON_CODES",
+        "DASHBOARD_MATCH_METHOD",
+        "DASHBOARD_MATCH_SIMILARITY",
         "AI_EDGE_REVIEW_RECOMMENDED",
         "AI_EDGE_REVIEW_REASON",
     ]
@@ -341,12 +510,15 @@ def compare(current_export: Path, vera_output: Path, output_dir: Path, include_r
         {"metric": "comparison_date_window_start", "value": current_min_date.strftime("%Y-%m-%d") if current_min_date is not None else ""},
         {"metric": "comparison_date_window_end", "value": current_max_date.strftime("%Y-%m-%d") if current_max_date is not None else ""},
         {"metric": "current_process_rows", "value": len(current_comp)},
+        {"metric": "current_rows_exact_matched_to_vera_source", "value": int(current_comp["DASHBOARD_MATCH_METHOD"].eq("exact_text_hash").sum())},
+        {"metric": "current_rows_fuzzy_matched_to_vera_source", "value": int(current_comp["DASHBOARD_MATCH_METHOD"].eq("same_site_date_fuzzy_text").sum())},
         {"metric": "current_rows_matched_to_vera_source", "value": int(current_comp["CURRENT_MATCHED_TO_VERA_SOURCE"].sum())},
         {"metric": "current_rows_unmatched_to_vera_source", "value": int((~current_comp["CURRENT_MATCHED_TO_VERA_SOURCE"]).sum())},
         {"metric": "current_rows_flagged_by_vera", "value": int(current_comp["VERA_FLAG_REVIEW_CANDIDATE"].sum())},
         {"metric": "current_rows_not_flagged_by_vera", "value": int(len(current_only))},
         {"metric": "vera_total_rows", "value": len(vera_keyed)},
         {"metric": "vera_review_candidates", "value": int(vera_keyed["VERA_FLAG_REVIEW_CANDIDATE"].sum())},
+        {"metric": "vera_candidate_semantic_matches_in_current_export", "value": len(dashboard_semantic_matches)},
         {"metric": "vera_only_candidates", "value": len(vera_only)},
         {"metric": "ai_edge_review_queue_rows", "value": len(edge_queue)},
     ]
@@ -371,6 +543,8 @@ def compare(current_export: Path, vera_output: Path, output_dir: Path, include_r
     current_only.to_csv(output_dir / "current_only_vera_not_flagged.csv", index=False)
     current_unmatched.to_csv(output_dir / "current_unmatched_to_vera_source.csv", index=False)
     vera_only.to_csv(output_dir / "vera_only_candidates.csv", index=False)
+    fuzzy_matches.to_csv(output_dir / "fuzzy_dashboard_vera_matches.csv", index=False)
+    dashboard_semantic_export.to_csv(output_dir / "dashboard_semantic_matches.csv", index=False)
     edge_queue.to_csv(output_dir / "ai_edge_review_queue.csv", index=False)
     build_report_html(
         output_dir / "current_vs_vera_comparison_report.html",
